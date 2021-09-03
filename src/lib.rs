@@ -67,6 +67,7 @@ pub mod tasks {
         fn get_data(&self) -> io::Result<String>;
 
         /// Dependencies, stored in a HashMap. These will be generated using the run method.
+        /// This is like the requires() method in luigi.
         fn get_dep_tasks(&self) -> HashMap::<&'static str, Box<dyn Task>> {
             HashMap::new()
         }
@@ -119,8 +120,9 @@ pub mod tasks {
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, io};
-
     use crate::tasks::{FileTarget, Target, Task};
+    extern crate serde;
+    use serde::{Serialize, Deserialize};
 
     #[test]
     fn file_target() {
@@ -155,6 +157,83 @@ mod tests {
         // test with cached starting data
         assert_eq!(target.read().unwrap(), String::from("some data"));
     }
+
+    #[test]
+    fn serde_task() {
+        struct FileTask {
+            value: f64,
+        }
+
+        impl FileTask {
+            fn get_value(&self) -> f64 {
+                let v: f64 = serde_json::from_str(self.get_target().read().unwrap().as_str()).unwrap();
+                v
+            }
+        }
+
+        impl Task for FileTask {
+            fn get_target(&self) -> Box<dyn Target> {
+                Box::new(FileTarget::new( "/tmp",  "test_serde_task_target.txt"))
+            }
+
+            fn get_data(&self) -> io::Result<String> {
+                let s = serde_json::to_string(&self.value).unwrap();
+                Ok(s)
+            }
+        }
+
+        let task = FileTask{value: 1.23};
+        let target = task.get_target();
+        // test with no starting data
+        target.delete().unwrap();
+        // generate the data
+        task.run().unwrap();
+        assert_eq!(task.get_value(), 1.23);
+    }
+
+
+    #[test]
+    fn serde_struct_task() {
+        #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+        struct Value {
+            a: String,
+            b: f64,
+        }
+
+        // value is hard-coded here. In a realistic example we'd compute something in get_data()
+        struct FileTask {
+            value: Value,
+        }
+
+        impl FileTask {
+            fn get_value(&self) -> Value {
+                let v: Value = serde_json::from_str(self.get_target().read().unwrap().as_str()).unwrap();
+                v
+            }
+        }
+
+        impl Task for FileTask {
+            fn get_target(&self) -> Box<dyn Target> {
+                Box::new(FileTarget::new( "/tmp",  "test_serde_struct_task_target.txt"))
+            }
+
+            fn get_data(&self) -> io::Result<String> {
+                let s = serde_json::to_string(&self.value).unwrap();
+                Ok(s)
+            }
+        }
+
+        let value = Value{a: String::from("a string"), b: 1.23};
+        let task = FileTask{value: value.clone()};
+        let target = task.get_target();
+        // test with no starting data
+        target.delete().unwrap();
+        // generate the data
+        task.run().unwrap();
+        let read_value = task.get_value();
+        assert_eq!(value, read_value);
+    }
+
 
     #[test]
     fn dependent_file_task() {
