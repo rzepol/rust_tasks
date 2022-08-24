@@ -19,12 +19,12 @@ pub mod tasks {
 
     /// The FileTarget type implements Target, using a file as the cache destination.
     pub struct FileTarget {
-        pub cache_dir: &'static str,
-        pub local_filename: &'static str,
+        pub cache_dir: String,
+        pub local_filename: String,
     }
 
     impl FileTarget {
-        pub fn new(cache_dir: &'static str, local_filename: &'static str) -> Self {
+        pub fn new(cache_dir: String, local_filename: String) -> Self {
             FileTarget {
                 cache_dir,
                 local_filename,
@@ -33,7 +33,7 @@ pub mod tasks {
 
         /// Cache filename
         fn filename(&self) -> path::PathBuf {
-            path::Path::new(self.cache_dir).join(self.local_filename)
+            path::Path::new(self.cache_dir.as_str()).join(self.local_filename.as_str())
         }
     }
 
@@ -65,11 +65,7 @@ pub mod tasks {
     }
 
     impl DatedFileTarget {
-        pub fn new(
-            cache_dir: &'static str,
-            local_filename: &'static str,
-            date: chrono::NaiveDate,
-        ) -> Self {
+        pub fn new(cache_dir: String, local_filename: String, date: chrono::NaiveDate) -> Self {
             let file_target = FileTarget {
                 cache_dir,
                 local_filename,
@@ -80,7 +76,7 @@ pub mod tasks {
         fn filename(&self) -> path::PathBuf {
             let dstr = self.date.format("%Y%m%d").to_string();
             let local_filename = format!("{}_{}", dstr, self.file_target.local_filename);
-            path::Path::new(self.file_target.cache_dir).join(local_filename)
+            path::Path::new(self.file_target.cache_dir.as_str()).join(local_filename)
         }
     }
 
@@ -140,7 +136,7 @@ pub mod tasks {
             let target = self.get_target();
             if !target.exists() {
                 let data = self.get_data()?;
-                target.write(data.as_str())?;
+                target.write(&data)?;
                 return Ok(());
             }
             Ok(())
@@ -175,7 +171,7 @@ mod tests {
 
     #[test]
     fn file_target() {
-        let ft = FileTarget::new("/tmp", "test_target.txt");
+        let ft = FileTarget::new("/tmp".to_string(), "test_target.txt".to_string());
         ft.delete().unwrap();
         assert!(!ft.exists());
         ft.write("test data").unwrap();
@@ -186,8 +182,8 @@ mod tests {
     #[test]
     fn dated_file_target() {
         let ft = DatedFileTarget::new(
-            "/tmp",
-            "dated_test_target.txt",
+            "/tmp".to_string(),
+            "dated_test_target.txt".to_string(),
             chrono::NaiveDate::from_ymd(2021, 9, 3),
         );
         ft.delete().unwrap();
@@ -202,7 +198,10 @@ mod tests {
         struct FileTask {}
         impl Task for FileTask {
             fn get_target(&self) -> Box<dyn Target> {
-                Box::new(FileTarget::new("/tmp", "test_task_target.txt"))
+                Box::new(FileTarget::new(
+                    "/tmp".to_string(),
+                    "test_task_target.txt".to_string(),
+                ))
             }
 
             fn get_data(&self) -> io::Result<String> {
@@ -237,7 +236,10 @@ mod tests {
 
         impl Task for FileTask {
             fn get_target(&self) -> Box<dyn Target> {
-                Box::new(FileTarget::new("/tmp", "test_serde_task_target.txt"))
+                Box::new(FileTarget::new(
+                    "/tmp".to_string(),
+                    "test_serde_task_target.txt".to_string(),
+                ))
             }
 
             fn get_data(&self) -> io::Result<String> {
@@ -279,7 +281,10 @@ mod tests {
 
         impl Task for FileTask {
             fn get_target(&self) -> Box<dyn Target> {
-                Box::new(FileTarget::new("/tmp", "test_serde_struct_task_target.txt"))
+                Box::new(FileTarget::new(
+                    "/tmp".to_string(),
+                    "test_serde_struct_task_target.txt".to_string(),
+                ))
             }
 
             fn get_data(&self) -> io::Result<String> {
@@ -310,8 +315,8 @@ mod tests {
         impl Task for Dep1 {
             fn get_target(&self) -> Box<dyn Target> {
                 Box::new(FileTarget {
-                    cache_dir: "/tmp",
-                    local_filename: "test_task_target_dep1.txt",
+                    cache_dir: "/tmp".to_string(),
+                    local_filename: "test_task_target_dep1.txt".to_string(),
                 })
             }
 
@@ -324,8 +329,8 @@ mod tests {
         impl Task for Dep2 {
             fn get_target(&self) -> Box<dyn Target> {
                 Box::new(FileTarget {
-                    cache_dir: "/tmp",
-                    local_filename: "test_task_target_dep2.txt",
+                    cache_dir: "/tmp".to_string(),
+                    local_filename: "test_task_target_dep2.txt".to_string(),
                 })
             }
 
@@ -338,8 +343,8 @@ mod tests {
         impl Task for FinalTask {
             fn get_target(&self) -> Box<dyn Target> {
                 Box::new(FileTarget {
-                    cache_dir: "/tmp",
-                    local_filename: "test_task_target_depfinal.txt",
+                    cache_dir: "/tmp".to_string(),
+                    local_filename: "test_task_target_depfinal.txt".to_string(),
                 })
             }
 
