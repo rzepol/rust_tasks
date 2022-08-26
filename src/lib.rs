@@ -2,14 +2,14 @@ pub mod tasks {
     use anyhow::Result;
     use std::{collections::HashMap, fs, path};
 
-    /// The Target trait represents cached data. The data is stored as a String, and can be used
+    /// The Target trait represents cached data. The data is stored as a byte slice, and can be used
     /// with serde for serialization of other types.
     pub trait Target {
         /// Read data from a cache
-        fn read(&self) -> Result<String>;
+        fn read(&self) -> Result<Vec<u8>>;
 
         /// Write data to a cache
-        fn write(&self, s: &str) -> Result<()>;
+        fn write(&self, s: &[u8]) -> Result<()>;
 
         /// Delete cache data
         fn delete(&self) -> Result<()>;
@@ -40,11 +40,11 @@ pub mod tasks {
 
     /// The implementation just uses std::fs file operations.
     impl Target for FileTarget {
-        fn read(&self) -> Result<String> {
-            Ok(fs::read_to_string(&self.filename())?)
+        fn read(&self) -> Result<Vec<u8>> {
+            Ok(fs::read(&self.filename())?)
         }
 
-        fn write(&self, s: &str) -> Result<()> {
+        fn write(&self, s: &[u8]) -> Result<()> {
             Ok(fs::write(self.filename(), s)?)
         }
 
@@ -84,11 +84,11 @@ pub mod tasks {
 
     // TODO: bad code smell - this implementation is the same as for FileTarget - investigate how to fix
     impl Target for DatedFileTarget {
-        fn read(&self) -> Result<String> {
-            Ok(fs::read_to_string(&self.filename())?)
+        fn read(&self) -> Result<Vec<u8>> {
+            Ok(fs::read(&self.filename())?)
         }
 
-        fn write(&self, s: &str) -> Result<()> {
+        fn write(&self, s: &[u8]) -> Result<()> {
             Ok(fs::write(self.filename(), s)?)
         }
 
@@ -113,7 +113,8 @@ pub mod tasks {
 
         /// The result of the task. This can use dependent task data as we will ensure that these
         /// have been run.
-        fn get_data(&self) -> Result<String>;
+        /// Don't call this directly unless you want to bypass the cache system
+        fn get_data(&self) -> Result<Vec<u8>>;
 
         /// Dependencies, stored in a HashMap. These will be generated using the run method.
         /// This is like the requires() method in luigi.
@@ -177,9 +178,9 @@ mod tests {
         let ft = FileTarget::new("/tmp".to_string(), "test_target.txt".to_string());
         ft.delete().unwrap();
         assert!(!ft.exists());
-        ft.write("test data").unwrap();
+        ft.write("test data".as_bytes()).unwrap();
         assert!(ft.exists());
-        assert_eq!(ft.read().unwrap(), String::from("test data"));
+        assert_eq!(ft.read().unwrap(), "test data".as_bytes().to_vec());
     }
 
     #[test]
@@ -191,9 +192,9 @@ mod tests {
         );
         ft.delete().unwrap();
         assert!(!ft.exists());
-        ft.write("test data").unwrap();
+        ft.write("test data".as_bytes()).unwrap();
         assert!(ft.exists());
-        assert_eq!(ft.read().unwrap(), String::from("test data"));
+        assert_eq!(ft.read().unwrap(), "test data".as_bytes().to_vec());
     }
 
     #[test]
@@ -207,8 +208,8 @@ mod tests {
                 ))
             }
 
-            fn get_data(&self) -> Result<String> {
-                Ok(String::from("some data"))
+            fn get_data(&self) -> Result<Vec<u8>> {
+                Ok("some data".as_bytes().to_vec())
             }
         }
 
@@ -218,9 +219,9 @@ mod tests {
         target.delete().unwrap();
         // generate the data
         task.run().unwrap();
-        assert_eq!(target.read().unwrap(), String::from("some data"));
+        assert_eq!(target.read().unwrap(), "some data".as_bytes().to_vec());
         // test with cached starting data
-        assert_eq!(target.read().unwrap(), String::from("some data"));
+        assert_eq!(target.read().unwrap(), "some data".as_bytes().to_vec());
     }
 
     #[test]
@@ -231,8 +232,7 @@ mod tests {
 
         impl FileTask {
             fn get_value(&self) -> f64 {
-                let v: f64 =
-                    serde_json::from_str(self.get_target().read().unwrap().as_str()).unwrap();
+                let v: f64 = serde_json::from_slice(&self.get_target().read().unwrap()).unwrap();
                 v
             }
         }
@@ -245,8 +245,8 @@ mod tests {
                 ))
             }
 
-            fn get_data(&self) -> Result<String> {
-                let s = serde_json::to_string(&self.value).unwrap();
+            fn get_data(&self) -> Result<Vec<u8>> {
+                let s = serde_json::to_vec(&self.value).unwrap();
                 Ok(s)
             }
         }
@@ -276,8 +276,7 @@ mod tests {
 
         impl FileTask {
             fn get_value(&self) -> Value {
-                let v: Value =
-                    serde_json::from_str(self.get_target().read().unwrap().as_str()).unwrap();
+                let v: Value = serde_json::from_slice(&self.get_target().read().unwrap()).unwrap();
                 v
             }
         }
@@ -290,8 +289,8 @@ mod tests {
                 ))
             }
 
-            fn get_data(&self) -> Result<String> {
-                let s = serde_json::to_string(&self.value).unwrap();
+            fn get_data(&self) -> Result<Vec<u8>> {
+                let s = serde_json::to_vec(&self.value).unwrap();
                 Ok(s)
             }
         }
@@ -323,8 +322,8 @@ mod tests {
                 })
             }
 
-            fn get_data(&self) -> Result<String> {
-                Ok(String::from("dep1 data"))
+            fn get_data(&self) -> Result<Vec<u8>> {
+                Ok("dep1 data".as_bytes().to_vec())
             }
         }
 
@@ -337,8 +336,8 @@ mod tests {
                 })
             }
 
-            fn get_data(&self) -> Result<String> {
-                Ok(String::from("dep2 data"))
+            fn get_data(&self) -> Result<Vec<u8>> {
+                Ok("dep2 data".as_bytes().to_vec())
             }
         }
 
@@ -358,13 +357,12 @@ mod tests {
                 result
             }
 
-            fn get_data(&self) -> Result<String> {
+            fn get_data(&self) -> Result<Vec<u8>> {
                 let dep_targets = self.get_dep_targets();
-                let s1 = dep_targets.get("dep1").unwrap().read()?;
-                println!("s1={}", s1);
-                let s2 = dep_targets.get("dep2").unwrap().read()?;
-                println!("s2={}", s2);
-                Ok([s1, s2].join(" - "))
+                let mut s1 = dep_targets.get("dep1").unwrap().read()?;
+                s1.extend(" - ".as_bytes());
+                s1.extend(dep_targets.get("dep2").unwrap().read()?);
+                Ok(s1)
             }
         }
 
@@ -374,15 +372,15 @@ mod tests {
         task.run().unwrap();
         assert_eq!(
             requires.get("dep1").unwrap().get_data().unwrap(),
-            String::from("dep1 data")
+            "dep1 data".as_bytes().to_vec()
         );
         assert_eq!(
             requires.get("dep2").unwrap().get_data().unwrap(),
-            String::from("dep2 data")
+            "dep2 data".as_bytes().to_vec()
         );
         assert_eq!(
             task.get_data().unwrap(),
-            String::from("dep1 data - dep2 data")
+            "dep1 data - dep2 data".as_bytes().to_vec()
         );
     }
 }
