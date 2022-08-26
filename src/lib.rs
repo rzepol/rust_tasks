@@ -1,17 +1,18 @@
 pub mod tasks {
-    use std::{collections::HashMap, fs, io, path};
+    use anyhow::Result;
+    use std::{collections::HashMap, fs, path};
 
     /// The Target trait represents cached data. The data is stored as a String, and can be used
     /// with serde for serialization of other types.
     pub trait Target {
         /// Read data from a cache
-        fn read(&self) -> io::Result<String>;
+        fn read(&self) -> Result<String>;
 
         /// Write data to a cache
-        fn write(&self, s: &str) -> io::Result<()>;
+        fn write(&self, s: &str) -> Result<()>;
 
         /// Delete cache data
-        fn delete(&self) -> io::Result<()>;
+        fn delete(&self) -> Result<()>;
 
         /// Does the cache exist
         fn exists(&self) -> bool;
@@ -32,30 +33,31 @@ pub mod tasks {
         }
 
         /// Cache filename
-        fn filename(&self) -> path::PathBuf {
+        pub fn filename(&self) -> path::PathBuf {
             path::Path::new(self.cache_dir.as_str()).join(self.local_filename.as_str())
         }
     }
 
     /// The implementation just uses std::fs file operations.
     impl Target for FileTarget {
-        fn read(&self) -> io::Result<String> {
-            fs::read_to_string(&self.filename())
+        fn read(&self) -> Result<String> {
+            Ok(fs::read_to_string(&self.filename())?)
         }
 
-        fn write(&self, s: &str) -> io::Result<()> {
-            fs::write(self.filename(), s)
+        fn write(&self, s: &str) -> Result<()> {
+            Ok(fs::write(self.filename(), s)?)
         }
 
         fn exists(&self) -> bool {
             self.filename().is_file()
         }
 
-        fn delete(&self) -> io::Result<()> {
+        fn delete(&self) -> Result<()> {
             if self.exists() {
-                return fs::remove_file(self.filename());
+                Ok(fs::remove_file(self.filename())?)
+            } else {
+                Ok(())
             }
-            Ok(())
         }
     }
 
@@ -82,23 +84,24 @@ pub mod tasks {
 
     // TODO: bad code smell - this implementation is the same as for FileTarget - investigate how to fix
     impl Target for DatedFileTarget {
-        fn read(&self) -> io::Result<String> {
-            fs::read_to_string(&self.filename())
+        fn read(&self) -> Result<String> {
+            Ok(fs::read_to_string(&self.filename())?)
         }
 
-        fn write(&self, s: &str) -> io::Result<()> {
-            fs::write(self.filename(), s)
+        fn write(&self, s: &str) -> Result<()> {
+            Ok(fs::write(self.filename(), s)?)
         }
 
         fn exists(&self) -> bool {
             self.filename().is_file()
         }
 
-        fn delete(&self) -> io::Result<()> {
+        fn delete(&self) -> Result<()> {
             if self.exists() {
-                return fs::remove_file(self.filename());
+                Ok(fs::remove_file(self.filename())?)
+            } else {
+                Ok(())
             }
-            Ok(())
         }
     }
 
@@ -110,17 +113,17 @@ pub mod tasks {
 
         /// The result of the task. This can use dependent task data as we will ensure that these
         /// have been run.
-        fn get_data(&self) -> io::Result<String>;
+        fn get_data(&self) -> Result<String>;
 
         /// Dependencies, stored in a HashMap. These will be generated using the run method.
         /// This is like the requires() method in luigi.
-        fn get_dep_tasks(&self) -> HashMap<&'static str, Box<dyn Task>> {
+        fn get_dep_tasks(&self) -> HashMap<String, Box<dyn Task>> {
             HashMap::new()
         }
 
         /// Dependent task targets.
-        fn get_dep_targets(&self) -> HashMap<&'static str, Box<dyn Target>> {
-            let mut result = HashMap::<&'static str, Box<dyn Target>>::new();
+        fn get_dep_targets(&self) -> HashMap<String, Box<dyn Target>> {
+            let mut result = HashMap::<String, Box<dyn Target>>::new();
             for (k, task) in self.get_dep_tasks() {
                 result.insert(k, task.get_target());
             }
@@ -128,7 +131,7 @@ pub mod tasks {
         }
 
         /// This method recursively generates dependent data, and then calls get_data for the Task.
-        fn run(&self) -> io::Result<()> {
+        fn run(&self) -> Result<()> {
             // recursively run dependent tasks
             for (_, dep) in self.get_dep_tasks() {
                 dep.run()?;
@@ -137,13 +140,12 @@ pub mod tasks {
             if !target.exists() {
                 let data = self.get_data()?;
                 target.write(&data)?;
-                return Ok(());
             }
             Ok(())
         }
 
         /// Non-recursively delete dependencies, i.e., delete task outputs for dependent tasks
-        fn delete_deps(&self) -> io::Result<()> {
+        fn delete_deps(&self) -> Result<()> {
             for (_, dep) in self.get_dep_targets() {
                 dep.delete()?;
             }
@@ -152,7 +154,7 @@ pub mod tasks {
 
         /// Recursively delete dependencies, i.e., delete task outputs for dependent tasks and
         /// their dependencies as well.
-        fn recursively_delete_deps(&self) -> io::Result<()> {
+        fn recursively_delete_deps(&self) -> Result<()> {
             for (_, dep) in self.get_dep_tasks() {
                 dep.get_target().delete()?;
                 dep.delete_deps()?;
@@ -165,8 +167,9 @@ pub mod tasks {
 #[cfg(test)]
 mod tests {
     use crate::tasks::{DatedFileTarget, FileTarget, Target, Task};
-    use std::{collections::HashMap, io};
+    use std::collections::HashMap;
     extern crate serde;
+    use anyhow::Result;
     use serde::{Deserialize, Serialize};
 
     #[test]
@@ -204,7 +207,7 @@ mod tests {
                 ))
             }
 
-            fn get_data(&self) -> io::Result<String> {
+            fn get_data(&self) -> Result<String> {
                 Ok(String::from("some data"))
             }
         }
@@ -242,7 +245,7 @@ mod tests {
                 ))
             }
 
-            fn get_data(&self) -> io::Result<String> {
+            fn get_data(&self) -> Result<String> {
                 let s = serde_json::to_string(&self.value).unwrap();
                 Ok(s)
             }
@@ -287,7 +290,7 @@ mod tests {
                 ))
             }
 
-            fn get_data(&self) -> io::Result<String> {
+            fn get_data(&self) -> Result<String> {
                 let s = serde_json::to_string(&self.value).unwrap();
                 Ok(s)
             }
@@ -320,7 +323,7 @@ mod tests {
                 })
             }
 
-            fn get_data(&self) -> io::Result<String> {
+            fn get_data(&self) -> Result<String> {
                 Ok(String::from("dep1 data"))
             }
         }
@@ -334,7 +337,7 @@ mod tests {
                 })
             }
 
-            fn get_data(&self) -> io::Result<String> {
+            fn get_data(&self) -> Result<String> {
                 Ok(String::from("dep2 data"))
             }
         }
@@ -348,14 +351,14 @@ mod tests {
                 })
             }
 
-            fn get_dep_tasks(&self) -> HashMap<&'static str, Box<dyn Task>> {
-                let mut result = HashMap::<&'static str, Box<dyn Task>>::new();
-                result.insert("dep1", Box::new(Dep1 {}));
-                result.insert("dep2", Box::new(Dep2 {}));
+            fn get_dep_tasks(&self) -> HashMap<String, Box<dyn Task>> {
+                let mut result = HashMap::<String, Box<dyn Task>>::new();
+                result.insert("dep1".to_string(), Box::new(Dep1 {}));
+                result.insert("dep2".to_string(), Box::new(Dep2 {}));
                 result
             }
 
-            fn get_data(&self) -> io::Result<String> {
+            fn get_data(&self) -> Result<String> {
                 let dep_targets = self.get_dep_targets();
                 let s1 = dep_targets.get("dep1").unwrap().read()?;
                 println!("s1={}", s1);
