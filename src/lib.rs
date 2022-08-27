@@ -109,7 +109,7 @@ pub mod tasks {
     /// after the python luigi module.
     pub trait Task {
         /// Target for task output
-        fn get_target(&self) -> Box<dyn Target>;
+        fn get_target(&self) -> Result<Box<dyn Target>>;
 
         /// The result of the task. This can use dependent task data as we will ensure that these
         /// have been run.
@@ -123,12 +123,12 @@ pub mod tasks {
         }
 
         /// Dependent task targets.
-        fn get_dep_targets(&self) -> HashMap<String, Box<dyn Target>> {
+        fn get_dep_targets(&self) -> Result<HashMap<String, Box<dyn Target>>> {
             let mut result = HashMap::<String, Box<dyn Target>>::new();
             for (k, task) in self.get_dep_tasks() {
-                result.insert(k, task.get_target());
+                result.insert(k, task.get_target()?);
             }
-            result
+            Ok(result)
         }
 
         /// This method recursively generates dependent data, and then calls get_data for the Task.
@@ -137,7 +137,7 @@ pub mod tasks {
             for (_, dep) in self.get_dep_tasks() {
                 dep.run()?;
             }
-            let target = self.get_target();
+            let target = self.get_target()?;
             if !target.exists() {
                 let data = self.get_data()?;
                 target.write(&data)?;
@@ -147,7 +147,7 @@ pub mod tasks {
 
         /// Non-recursively delete dependencies, i.e., delete task outputs for dependent tasks
         fn delete_deps(&self) -> Result<()> {
-            for (_, dep) in self.get_dep_targets() {
+            for (_, dep) in self.get_dep_targets()? {
                 dep.delete()?;
             }
             Ok(())
@@ -157,7 +157,7 @@ pub mod tasks {
         /// their dependencies as well.
         fn recursively_delete_deps(&self) -> Result<()> {
             for (_, dep) in self.get_dep_tasks() {
-                dep.get_target().delete()?;
+                dep.get_target()?.delete()?;
                 dep.delete_deps()?;
             }
             Ok(())
@@ -201,11 +201,11 @@ mod tests {
     fn file_task() {
         struct FileTask {}
         impl Task for FileTask {
-            fn get_target(&self) -> Box<dyn Target> {
-                Box::new(FileTarget::new(
+            fn get_target(&self) -> Result<Box<dyn Target>> {
+                Ok(Box::new(FileTarget::new(
                     "/tmp".to_string(),
                     "test_task_target.txt".to_string(),
-                ))
+                )))
             }
 
             fn get_data(&self) -> Result<Vec<u8>> {
@@ -214,7 +214,7 @@ mod tests {
         }
 
         let task = FileTask {};
-        let target = task.get_target();
+        let target = task.get_target().expect("Can't get target");
         // test with no starting data
         target.delete().unwrap();
         // generate the data
@@ -232,17 +232,20 @@ mod tests {
 
         impl FileTask {
             fn get_value(&self) -> f64 {
-                let v: f64 = serde_json::from_slice(&self.get_target().read().unwrap()).unwrap();
+                let v: f64 = serde_json::from_slice(
+                    &self.get_target().expect("Can't get target").read().unwrap(),
+                )
+                .unwrap();
                 v
             }
         }
 
         impl Task for FileTask {
-            fn get_target(&self) -> Box<dyn Target> {
-                Box::new(FileTarget::new(
+            fn get_target(&self) -> Result<Box<dyn Target>> {
+                Ok(Box::new(FileTarget::new(
                     "/tmp".to_string(),
                     "test_serde_task_target.txt".to_string(),
-                ))
+                )))
             }
 
             fn get_data(&self) -> Result<Vec<u8>> {
@@ -252,7 +255,7 @@ mod tests {
         }
 
         let task = FileTask { value: 1.23 };
-        let target = task.get_target();
+        let target = task.get_target().expect("Can't get target");
         // test with no starting data
         target.delete().unwrap();
         // generate the data
@@ -276,17 +279,20 @@ mod tests {
 
         impl FileTask {
             fn get_value(&self) -> Value {
-                let v: Value = serde_json::from_slice(&self.get_target().read().unwrap()).unwrap();
+                let v: Value = serde_json::from_slice(
+                    &self.get_target().expect("Can't get target").read().unwrap(),
+                )
+                .unwrap();
                 v
             }
         }
 
         impl Task for FileTask {
-            fn get_target(&self) -> Box<dyn Target> {
-                Box::new(FileTarget::new(
+            fn get_target(&self) -> Result<Box<dyn Target>> {
+                Ok(Box::new(FileTarget::new(
                     "/tmp".to_string(),
                     "test_serde_struct_task_target.txt".to_string(),
-                ))
+                )))
             }
 
             fn get_data(&self) -> Result<Vec<u8>> {
@@ -302,7 +308,7 @@ mod tests {
         let task = FileTask {
             value: value.clone(),
         };
-        let target = task.get_target();
+        let target = task.get_target().expect("Can't get target");
         // test with no starting data
         target.delete().unwrap();
         // generate the data
@@ -315,11 +321,11 @@ mod tests {
     fn dependent_file_task() {
         struct Dep1 {}
         impl Task for Dep1 {
-            fn get_target(&self) -> Box<dyn Target> {
-                Box::new(FileTarget {
+            fn get_target(&self) -> Result<Box<dyn Target>> {
+                Ok(Box::new(FileTarget {
                     cache_dir: "/tmp".to_string(),
                     local_filename: "test_task_target_dep1.txt".to_string(),
-                })
+                }))
             }
 
             fn get_data(&self) -> Result<Vec<u8>> {
@@ -329,11 +335,11 @@ mod tests {
 
         struct Dep2 {}
         impl Task for Dep2 {
-            fn get_target(&self) -> Box<dyn Target> {
-                Box::new(FileTarget {
+            fn get_target(&self) -> Result<Box<dyn Target>> {
+                Ok(Box::new(FileTarget {
                     cache_dir: "/tmp".to_string(),
                     local_filename: "test_task_target_dep2.txt".to_string(),
-                })
+                }))
             }
 
             fn get_data(&self) -> Result<Vec<u8>> {
@@ -343,11 +349,11 @@ mod tests {
 
         struct FinalTask {}
         impl Task for FinalTask {
-            fn get_target(&self) -> Box<dyn Target> {
-                Box::new(FileTarget {
+            fn get_target(&self) -> Result<Box<dyn Target>> {
+                Ok(Box::new(FileTarget {
                     cache_dir: "/tmp".to_string(),
                     local_filename: "test_task_target_depfinal.txt".to_string(),
-                })
+                }))
             }
 
             fn get_dep_tasks(&self) -> HashMap<String, Box<dyn Task>> {
@@ -358,7 +364,9 @@ mod tests {
             }
 
             fn get_data(&self) -> Result<Vec<u8>> {
-                let dep_targets = self.get_dep_targets();
+                let dep_targets = self
+                    .get_dep_targets()
+                    .expect("Couldn't get dependent targets");
                 let mut s1 = dep_targets.get("dep1").unwrap().read()?;
                 s1.extend(" - ".as_bytes());
                 s1.extend(dep_targets.get("dep2").unwrap().read()?);
