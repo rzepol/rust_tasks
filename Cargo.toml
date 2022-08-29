@@ -11,3 +11,5 @@ serde_json = "1.0"
 chrono = "0.4"
 chrono-tz = "0.5"
 anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+rayon = "1"
