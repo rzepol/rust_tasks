@@ -22,6 +22,7 @@ pub mod scheduler {
         pub children: HashSet<Uuid>,
     }
 
+    /// Tasks don't implemnet Debug so just print their names
     impl fmt::Debug for Node {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f.debug_struct("Node")
@@ -34,12 +35,15 @@ pub mod scheduler {
         }
     }
 
+    /// ChildData is a struct that contains a task as well as its ID and parent ID
     struct ChildData {
         id: Uuid,
         task: Box<dyn Task>,
         parent: Uuid,
     }
 
+    /// NodeWithChildren contains a node and a vec of dependencies, with enough information to
+    /// add the dependencies to the tree later
     struct NodeWithChildren {
         node: Node,
         children: Vec<ChildData>,
@@ -51,12 +55,16 @@ pub mod scheduler {
         // CLUSTER
     }
 
+    /// DAG represents a directed acylic graph corresponding to the logical structure of a task with dependencies.
+    /// It's currently implemented as an arena (a vec of nodes where nodes specify dependencies), with UUIDs as
+    /// node identifiers.
     #[derive(Debug)]
     pub struct DAG {
-        pub nodes: HashMap<Uuid, Node>,
+        nodes: HashMap<Uuid, Node>,
     }
 
     impl DAG {
+        // Construct a DAG given a Task object
         pub fn new(head_task: Box<dyn Task>) -> Result<Self> {
             let mut to_process = Vec::new();
             let mut processed = HashMap::new();
@@ -74,7 +82,7 @@ pub mod scheduler {
             Ok(Self { nodes: processed })
         }
 
-        // Run all tasks in the DAG
+        // Run all tasks in the DAG according to run_style (e.g., local or multi-threaded parallel)
         pub fn run(&mut self, run_style: &RunStyle) -> Result<()> {
             let mut finished = self
                 .nodes
@@ -132,6 +140,7 @@ pub mod scheduler {
             candidates
         }
 
+        /// Make a node and a collection of children with enough information to connect them to the DAG
         fn make_node(
             task: Box<dyn Task>,
             parent_id: Option<Uuid>,
