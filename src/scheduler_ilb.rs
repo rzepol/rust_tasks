@@ -126,6 +126,15 @@ pub mod scheduler {
             Ok(())
         }
 
+        // Delete all target data
+        pub fn delete_all(&mut self) -> Result<()> {
+            for node in &mut self.nodes.values_mut() {
+                node.task.delete_data()?;
+                node.is_done = false;
+            }
+            Ok(())
+        }
+
         // return run candidates: nodes that are not already done and where the children are all done
         // (i.e., the dependencies are all satisfied)
         fn get_run_candidates(&self, not_finished: &HashSet<Uuid>) -> HashSet<Uuid> {
@@ -326,6 +335,20 @@ pub mod scheduler {
 
             let all_done = dag.nodes.values().all(|node| node.is_done);
             assert!(all_done);
+        }
+
+        #[test]
+        fn delete_all() {
+            let task: Box<dyn Task> = Box::new(FinalTask {});
+            let mut dag = DAG::new(task).expect("Failed to construct DAG");
+            dag.run(&crate::scheduler::RunStyle::LOCAL)
+                .expect("Failed to run the DAG");
+            let all_done = dag.nodes.values().all(|node| node.is_done);
+            assert!(all_done);
+
+            dag.delete_all().expect("delete_all failed");
+            let any_done = dag.nodes.values().any(|node| node.is_done);
+            assert!(!any_done);
         }
     }
 }
