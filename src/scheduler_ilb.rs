@@ -75,7 +75,7 @@ pub mod scheduler {
         }
 
         // Run all tasks in the DAG
-        pub fn run(&mut self, run_style: RunStyle) -> Result<()> {
+        pub fn run(&mut self, run_style: &RunStyle) -> Result<()> {
             let mut finished = self
                 .nodes
                 .values()
@@ -295,7 +295,7 @@ pub mod scheduler {
             let any_done = dag.nodes.values().any(|node| node.is_done);
             assert!(!any_done);
 
-            dag.run(crate::scheduler::RunStyle::LOCAL)
+            dag.run(&crate::scheduler::RunStyle::LOCAL)
                 .expect("Failed to run the DAG");
 
             let all_done = dag.nodes.values().all(|node| node.is_done);
@@ -312,7 +312,7 @@ pub mod scheduler {
             let any_done = dag.nodes.values().any(|node| node.is_done);
             assert!(!any_done);
 
-            dag.run(crate::scheduler::RunStyle::PARALLEL)
+            dag.run(&crate::scheduler::RunStyle::PARALLEL)
                 .expect("Failed to run the DAG");
 
             let all_done = dag.nodes.values().all(|node| node.is_done);
