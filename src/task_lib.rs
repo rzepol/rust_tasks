@@ -18,6 +18,28 @@ pub mod tasks {
         fn exists(&self) -> bool;
     }
 
+    /// Target that does nothing, useful for wrapper tasks that exist solely to run dependencies
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct NullTarget {}
+
+    impl Target for NullTarget {
+        fn read(&self) -> Result<Vec<u8>> {
+            Ok(Vec::new())
+        }
+
+        fn write(&self, _: &[u8]) -> Result<()> {
+            Ok(())
+        }
+
+        fn delete(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn exists(&self) -> bool {
+            false
+        }
+    }
+
     /// The FileTarget type implements Target, using a file as the cache destination.
     #[derive(Debug, PartialEq, Eq)]
     pub struct FileTarget {
