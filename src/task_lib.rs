@@ -115,9 +115,10 @@ pub mod tasks {
 
         /// The result of the task. This can use dependent task data as we will ensure that these
         /// have been run.
-        /// Don't call this directly unless you want to bypass the cache system
+        /// Don't call this directly unless you want to bypass the cache system.
         fn get_data(&self) -> Result<Vec<u8>>;
 
+        /// Optional task name
         fn get_name(&self) -> String {
             "Unimplemented".to_string()
         }
@@ -128,7 +129,7 @@ pub mod tasks {
             HashMap::new()
         }
 
-        /// Dependent task targets.
+        /// Dependent task targets
         fn get_dep_targets(&self) -> Result<HashMap<String, Box<dyn Target>>> {
             let mut result = HashMap::<String, Box<dyn Target>>::new();
             for (k, task) in self.get_dep_tasks() {
