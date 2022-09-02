@@ -147,14 +147,14 @@ pub mod tasks {
 
         /// Dependencies, stored in a HashMap. These will be generated using the run method.
         /// This is like the requires() method in luigi.
-        fn get_dep_tasks(&self) -> HashMap<String, Box<dyn Task>> {
-            HashMap::new()
+        fn get_dep_tasks(&self) -> Result<HashMap<String, Box<dyn Task>>> {
+            Ok(HashMap::new())
         }
 
         /// Dependent task targets
         fn get_dep_targets(&self) -> Result<HashMap<String, Box<dyn Target>>> {
             let mut result = HashMap::<String, Box<dyn Target>>::new();
-            for (k, task) in self.get_dep_tasks() {
+            for (k, task) in self.get_dep_tasks()? {
                 result.insert(k, task.get_target()?);
             }
             Ok(result)
@@ -163,7 +163,7 @@ pub mod tasks {
         /// This method recursively generates dependent data, and then calls get_data for the Task.
         fn run(&self) -> Result<()> {
             // recursively run dependent tasks
-            for (_, dep) in self.get_dep_tasks() {
+            for (_, dep) in self.get_dep_tasks()? {
                 dep.run()?;
             }
             let target = self.get_target()?;
@@ -204,7 +204,7 @@ pub mod tasks {
         /// their dependencies as well.
         fn recursively_delete_data(&self) -> Result<()> {
             self.delete_data()?;
-            for (_, dep) in self.get_dep_tasks() {
+            for (_, dep) in self.get_dep_tasks()? {
                 dep.recursively_delete_data()?;
             }
             Ok(())
@@ -407,11 +407,11 @@ mod tests {
                 )))
             }
 
-            fn get_dep_tasks(&self) -> HashMap<String, Box<dyn Task>> {
+            fn get_dep_tasks(&self) -> Result<HashMap<String, Box<dyn Task>>> {
                 let mut result = HashMap::<String, Box<dyn Task>>::new();
                 result.insert("dep1".to_string(), Box::new(Dep1 {}));
                 result.insert("dep2".to_string(), Box::new(Dep2 {}));
-                result
+                Ok(result)
             }
 
             fn get_data(&self) -> Result<Vec<u8>> {
@@ -426,7 +426,7 @@ mod tests {
         }
 
         let task = FinalTask {};
-        let requires = task.get_dep_tasks();
+        let requires = task.get_dep_tasks().expect("get_dep_tasks() failed");
         task.recursively_delete_data().unwrap();
         task.run().unwrap();
         assert_eq!(

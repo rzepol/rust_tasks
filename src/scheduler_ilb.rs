@@ -156,7 +156,7 @@ pub mod scheduler {
             node_id: Uuid,
         ) -> Result<NodeWithChildren> {
             let is_done = task.get_target()?.exists();
-            let dep_tasks = task.get_dep_tasks();
+            let dep_tasks = task.get_dep_tasks()?;
             let child_tasks = dep_tasks.into_values().collect::<Vec<_>>();
             let mut children = Vec::new();
             for child in child_tasks {
@@ -220,10 +220,10 @@ pub mod scheduler {
                 }))
             }
 
-            fn get_dep_tasks(&self) -> HashMap<String, Box<dyn Task>> {
+            fn get_dep_tasks(&self) -> Result<HashMap<String, Box<dyn Task>>> {
                 let mut result = HashMap::<String, Box<dyn Task>>::new();
                 result.insert("dep3".to_string(), Box::new(Dep3 {}));
-                result
+                Ok(result)
             }
 
             fn get_data(&self) -> Result<Vec<u8>> {
@@ -269,11 +269,11 @@ pub mod scheduler {
                 )))
             }
 
-            fn get_dep_tasks(&self) -> HashMap<String, Box<dyn Task>> {
+            fn get_dep_tasks(&self) -> Result<HashMap<String, Box<dyn Task>>> {
                 let mut result = HashMap::<String, Box<dyn Task>>::new();
                 result.insert("dep1".to_string(), Box::new(Dep1 {}));
                 result.insert("dep2".to_string(), Box::new(Dep2 {}));
-                result
+                Ok(result)
             }
 
             fn get_data(&self) -> Result<Vec<u8>> {
