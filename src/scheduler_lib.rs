@@ -1,6 +1,7 @@
-/// Module to handle task schdeuling. Represent a taks as a DAG and run tasks from the leafs
-/// through to the head of the tree. This should allow different forms of running including
-/// local, local parallel, and distributed (e.g., to a compute cluster).
+/// Module to handle task schdeuling. Represent a taks as a DAG and run tasks
+/// from the leafs through to the head of the tree. This should allow different
+/// forms of running including local, local parallel, and distributed (e.g., to
+/// a compute cluster).
 pub mod scheduler {
     use std::{
         collections::{HashMap, HashSet},
@@ -42,8 +43,8 @@ pub mod scheduler {
         parent: Uuid,
     }
 
-    /// NodeWithChildren contains a node and a vec of dependencies, with enough information to
-    /// add the dependencies to the tree later
+    /// NodeWithChildren contains a node and a vec of dependencies, with enough
+    /// information to add the dependencies to the tree later
     struct NodeWithChildren {
         node: Node,
         children: Vec<ChildData>,
@@ -55,12 +56,12 @@ pub mod scheduler {
         // CLUSTER
     }
 
-    /// DAG represents a directed acylic graph corresponding to the logical structure of a task with dependencies.
-    /// It's currently implemented as an arena (a vec of nodes where nodes specify dependencies), with UUIDs as
+    /// DAG represents a directed acylic graph corresponding to the logical
+    /// structure of a task with dependencies. It's currently implemented as an
+    /// arena (a vec of nodes where nodes specify dependencies), with UUIDs as
     /// node identifiers.
-    #[derive(Debug)]
     pub struct DAG {
-        nodes: HashMap<Uuid, Node>,
+        pub nodes: HashMap<Uuid, Node>,
     }
 
     impl DAG {
@@ -174,6 +175,18 @@ pub mod scheduler {
                 children: children.iter().map(|c| c.id).collect::<HashSet<_>>(),
             };
             Ok(NodeWithChildren { node, children })
+        }
+    }
+
+    /// Print the DAG, one line per node
+    impl fmt::Debug for DAG {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let mut node_str_vec = Vec::new();
+            for node in self.nodes.values() {
+                node_str_vec.push(format!("{:?}", node));
+            }
+            let s = node_str_vec.join("\n");
+            f.write_str(&s)
         }
     }
 

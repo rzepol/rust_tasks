@@ -18,7 +18,8 @@ pub mod tasks {
         fn exists(&self) -> bool;
     }
 
-    /// Target that does nothing, useful for wrapper tasks that exist solely to run dependencies
+    /// Target that does nothing, useful for wrapper tasks that exist solely to
+    /// run dependencies
     #[derive(Debug, PartialEq, Eq)]
     pub struct NullTarget {}
 
@@ -35,6 +36,8 @@ pub mod tasks {
             Ok(())
         }
 
+        // exists is false. This means that the run method on a task with a NullTarget will
+        // always call run on the dependent tasks
         fn exists(&self) -> bool {
             false
         }
@@ -129,15 +132,15 @@ pub mod tasks {
         }
     }
 
-    /// The Task trait represents a piece of work with optional Task dependencies. This is modeled
-    /// after the python luigi module.
+    /// The Task trait represents a piece of work with optional Task
+    /// dependencies. This is modeled after the python luigi module.
     pub trait Task: fmt::Debug + Sync + Send {
         /// Target for task output
         fn get_target(&self) -> Result<Box<dyn Target>>;
 
-        /// The result of the task. This can use dependent task data as we will ensure that these
-        /// have been run.
-        /// Don't call this directly unless you want to bypass the cache system.
+        /// The result of the task. This can use dependent task data as we will
+        /// ensure that these have been run. Don't call this directly unless you
+        /// want to bypass the cache system.
         fn get_data(&self) -> Result<Vec<u8>>;
 
         /// Optional task name
@@ -145,8 +148,8 @@ pub mod tasks {
             "Unimplemented".to_string()
         }
 
-        /// Dependencies, stored in a HashMap. These will be generated using the run method.
-        /// This is like the requires() method in luigi.
+        /// Dependencies, stored in a HashMap. These will be generated using the
+        /// run method. This is like the requires() method in luigi.
         fn get_dep_tasks(&self) -> Result<HashMap<String, Box<dyn Task>>> {
             Ok(HashMap::new())
         }
@@ -160,7 +163,8 @@ pub mod tasks {
             Ok(result)
         }
 
-        /// This method recursively generates dependent data, and then calls get_data for the Task.
+        /// This method recursively generates dependent data, and then calls
+        /// get_data for the Task.
         fn run(&self) -> Result<()> {
             // recursively run dependent tasks
             for (_, dep) in self.get_dep_tasks()? {
