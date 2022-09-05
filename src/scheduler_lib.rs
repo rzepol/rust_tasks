@@ -214,7 +214,7 @@ pub mod scheduler {
                 }))
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 Ok("dep1 data".as_bytes().to_vec())
             }
         }
@@ -239,7 +239,7 @@ pub mod scheduler {
                 Ok(result)
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 let dep_targets = self
                     .get_dep_targets()
                     .expect("Couldn't get dependent targets");
@@ -263,7 +263,7 @@ pub mod scheduler {
                 }))
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 Ok("dep3 data".as_bytes().to_vec())
             }
         }
@@ -289,7 +289,7 @@ pub mod scheduler {
                 Ok(result)
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 let dep_targets = self
                     .get_dep_targets()
                     .expect("Couldn't get dependent targets");

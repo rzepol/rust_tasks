@@ -5,16 +5,16 @@ pub mod tasks {
     /// The Target trait represents cached data. The data is stored as a byte slice, and can be used
     /// with serde for serialization of other types.
     pub trait Target {
-        /// Return an empty byte vector
+        /// Read a Vec of bytes to target destination
         fn read(&self) -> Result<Vec<u8>>;
 
-        /// No-op
+        /// Read from target destination to a Vec of bytes
         fn write(&self, s: &[u8]) -> Result<()>;
 
-        /// No-op
+        /// Delete the target destination
         fn delete(&self) -> Result<()>;
 
-        /// Does the cache exist
+        /// Does the cache exist?
         fn exists(&self) -> bool;
     }
 
@@ -24,14 +24,17 @@ pub mod tasks {
     pub struct NullTarget {}
 
     impl Target for NullTarget {
+        /// Return an empty byte vector
         fn read(&self) -> Result<Vec<u8>> {
             Ok(Vec::new())
         }
 
+        /// No-op
         fn write(&self, _: &[u8]) -> Result<()> {
             Ok(())
         }
 
+        /// No-op
         fn delete(&self) -> Result<()> {
             Ok(())
         }
@@ -43,7 +46,7 @@ pub mod tasks {
         }
     }
 
-    /// The FileTarget type implements Target, using a file as the cache destination.
+    /// FileTarget implements Target, using a file as the cache destination.
     #[derive(Debug, PartialEq, Eq)]
     pub struct FileTarget {
         pub cache_dir: String,
@@ -58,7 +61,7 @@ pub mod tasks {
             }
         }
 
-        /// Cache filename
+        /// Cache full filename
         pub fn filename(&self) -> path::PathBuf {
             path::Path::new(self.cache_dir.as_str()).join(self.local_filename.as_str())
         }
@@ -87,6 +90,8 @@ pub mod tasks {
         }
     }
 
+    /// DatedFileTarget uses dated files (date appended to the front of the
+    /// filename). This implementation uses daily, not intraday dates
     #[derive(Debug, PartialEq, Eq)]
     pub struct DatedFileTarget {
         file_target: FileTarget,
@@ -134,6 +139,12 @@ pub mod tasks {
 
     /// The Task trait represents a piece of work with optional Task
     /// dependencies. This is modeled after the python luigi module.
+    ///
+    /// The pattern is that you put any dependencies in get_dep_tasks,
+    /// set the target in get_target(), and fill in the compute_output() method,
+    /// where you can assume that dependencies' tasks are complete.
+    /// Then to run the task you just invoke the run() method. After run()
+    /// is invoked you can get the output using the self.get_data() method.
     pub trait Task: fmt::Debug + Sync + Send {
         /// Target for task output
         fn get_target(&self) -> Result<Box<dyn Target>>;
@@ -141,14 +152,27 @@ pub mod tasks {
         /// The result of the task. This can use dependent task data as we will
         /// ensure that these have been run. Don't call this directly unless you
         /// want to bypass the cache system.
-        fn get_data(&self) -> Result<Vec<u8>>;
+        fn compute_output(&self) -> Result<Vec<u8>>;
+
+        /// Return the data from the target cache. If the target cache does not
+        /// exist this will fail
+        fn get_data(&self) -> Result<Vec<u8>> {
+            self.get_target()?.read()
+        }
+
+        /// Run the task (i.e., recursively run dependent tasks) and return the
+        /// data from the target cache
+        fn run_and_get_data(&self) -> Result<Vec<u8>> {
+            self.run()?;
+            self.get_data()
+        }
 
         /// Optional task name
         fn get_name(&self) -> String {
             "Unimplemented".to_string()
         }
 
-        /// Control verbosity
+        /// Control verbosity: several methods print when in verbose mode
         fn is_verbose(&self) -> bool {
             false
         }
@@ -178,13 +202,14 @@ pub mod tasks {
             for (_, dep) in self.get_dep_tasks()? {
                 dep.run()?;
             }
+            // run get_data() if the target doesn't exist
             let target = self.get_target()?;
             if !target.exists() {
                 println!(
                     "{}: target does not exist: invoking get_data()",
                     self.get_name()
                 );
-                let data = self.get_data()?;
+                let data = self.compute_output()?;
                 target.write(&data)?;
             } else {
                 println!("{}: target exists", self.get_name());
@@ -205,22 +230,24 @@ pub mod tasks {
                     "{}: target does not exist: invoking get_data() without running dependencies",
                     self.get_name()
                 );
-                let data = self.get_data()?;
+                let data = self.compute_output()?;
                 target.write(&data)?;
             }
             Ok(())
         }
 
+        /// Delete target data: this is a convenience method as you can always
+        /// just call self.get_target()?.delete()
         fn delete_data(&self) -> Result<()> {
             if self.is_verbose() {
                 println!("{}: invoking delete_data()", self.get_name());
             }
-            let target = self.get_target()?;
-            target.delete()?;
+            self.get_target()?.delete()?;
             Ok(())
         }
 
-        /// Non-recursively delete dependencies, i.e., delete task outputs for dependent tasks
+        /// Non-recursively delete dependencies, i.e., delete task outputs for
+        /// dependent tasks
         fn delete_deps(&self) -> Result<()> {
             if self.is_verbose() {
                 println!("{}: invoking delete_deps()", self.get_name());
@@ -231,8 +258,8 @@ pub mod tasks {
             Ok(())
         }
 
-        /// Recursively delete dependencies, i.e., delete task outputs for dependent tasks and
-        /// their dependencies as well.
+        /// Recursively delete dependencies, i.e., delete task outputs for
+        /// dependent tasks and their dependencies as well.
         fn recursively_delete_data(&self) -> Result<()> {
             if self.is_verbose() {
                 println!("{}: invoking recursively_delete_data()", self.get_name());
@@ -288,7 +315,7 @@ mod tests {
                 Ok(Box::new(FileTarget::new("/tmp", "test_task_target.txt")))
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 Ok("some data".as_bytes().to_vec())
             }
         }
@@ -329,7 +356,7 @@ mod tests {
                 )))
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 let s = serde_json::to_vec(&self.value).unwrap();
                 Ok(s)
             }
@@ -377,7 +404,7 @@ mod tests {
                 )))
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 let s = serde_json::to_vec(&self.value).unwrap();
                 Ok(s)
             }
@@ -411,7 +438,7 @@ mod tests {
                 }))
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 Ok("dep1 data".as_bytes().to_vec())
             }
         }
@@ -426,7 +453,7 @@ mod tests {
                 }))
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 Ok("dep2 data".as_bytes().to_vec())
             }
         }
@@ -448,7 +475,7 @@ mod tests {
                 Ok(result)
             }
 
-            fn get_data(&self) -> Result<Vec<u8>> {
+            fn compute_output(&self) -> Result<Vec<u8>> {
                 let dep_targets = self
                     .get_dep_targets()
                     .expect("Couldn't get dependent targets");
@@ -464,15 +491,15 @@ mod tests {
         task.recursively_delete_data().unwrap();
         task.run().unwrap();
         assert_eq!(
-            requires.get("dep1").unwrap().get_data().unwrap(),
+            requires.get("dep1").unwrap().compute_output().unwrap(),
             "dep1 data".as_bytes().to_vec()
         );
         assert_eq!(
-            requires.get("dep2").unwrap().get_data().unwrap(),
+            requires.get("dep2").unwrap().compute_output().unwrap(),
             "dep2 data".as_bytes().to_vec()
         );
         assert_eq!(
-            task.get_data().unwrap(),
+            task.compute_output().unwrap(),
             "dep1 data - dep2 data".as_bytes().to_vec()
         );
     }
