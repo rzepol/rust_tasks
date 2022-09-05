@@ -5,13 +5,13 @@ pub mod tasks {
     /// The Target trait represents cached data. The data is stored as a byte slice, and can be used
     /// with serde for serialization of other types.
     pub trait Target {
-        /// Read data from a cache
+        /// Return an empty byte vector
         fn read(&self) -> Result<Vec<u8>>;
 
-        /// Write data to a cache
+        /// No-op
         fn write(&self, s: &[u8]) -> Result<()>;
 
-        /// Delete cache data
+        /// No-op
         fn delete(&self) -> Result<()>;
 
         /// Does the cache exist
@@ -36,8 +36,8 @@ pub mod tasks {
             Ok(())
         }
 
-        // exists is false. This means that the run method on a task with a NullTarget will
-        // always call run on the dependent tasks
+        /// Exists is false. This means that the run method on a task with a
+        /// NullTarget will always call run on the dependent tasks
         fn exists(&self) -> bool {
             false
         }
@@ -148,6 +148,11 @@ pub mod tasks {
             "Unimplemented".to_string()
         }
 
+        /// Control verbosity
+        fn is_verbose(&self) -> bool {
+            false
+        }
+
         /// Dependencies, stored in a HashMap. These will be generated using the
         /// run method. This is like the requires() method in luigi.
         fn get_dep_tasks(&self) -> Result<HashMap<String, Box<dyn Task>>> {
@@ -166,14 +171,23 @@ pub mod tasks {
         /// This method recursively generates dependent data, and then calls
         /// get_data for the Task.
         fn run(&self) -> Result<()> {
+            if self.is_verbose() {
+                println!("{}: invoking run()", self.get_name());
+            }
             // recursively run dependent tasks
             for (_, dep) in self.get_dep_tasks()? {
                 dep.run()?;
             }
             let target = self.get_target()?;
             if !target.exists() {
+                println!(
+                    "{}: target does not exist: invoking get_data()",
+                    self.get_name()
+                );
                 let data = self.get_data()?;
                 target.write(&data)?;
+            } else {
+                println!("{}: target exists", self.get_name());
             }
             Ok(())
         }
@@ -182,8 +196,15 @@ pub mod tasks {
         /// dependencies are not present. For regular use just call run(). This method is used in the
         /// scheduler run method as dependencies are handled in the code there.
         fn run_no_deps(&self) -> Result<()> {
+            if self.is_verbose() {
+                println!("{}: invoking run_no_deps()", self.get_name());
+            }
             let target = self.get_target()?;
             if !target.exists() {
+                println!(
+                    "{}: target does not exist: invoking get_data() without running dependencies",
+                    self.get_name()
+                );
                 let data = self.get_data()?;
                 target.write(&data)?;
             }
@@ -191,6 +212,9 @@ pub mod tasks {
         }
 
         fn delete_data(&self) -> Result<()> {
+            if self.is_verbose() {
+                println!("{}: invoking delete_data()", self.get_name());
+            }
             let target = self.get_target()?;
             target.delete()?;
             Ok(())
@@ -198,6 +222,9 @@ pub mod tasks {
 
         /// Non-recursively delete dependencies, i.e., delete task outputs for dependent tasks
         fn delete_deps(&self) -> Result<()> {
+            if self.is_verbose() {
+                println!("{}: invoking delete_deps()", self.get_name());
+            }
             for (_, dep) in self.get_dep_targets()? {
                 dep.delete()?;
             }
@@ -207,6 +234,9 @@ pub mod tasks {
         /// Recursively delete dependencies, i.e., delete task outputs for dependent tasks and
         /// their dependencies as well.
         fn recursively_delete_data(&self) -> Result<()> {
+            if self.is_verbose() {
+                println!("{}: invoking recursively_delete_data()", self.get_name());
+            }
             self.delete_data()?;
             for (_, dep) in self.get_dep_tasks()? {
                 dep.recursively_delete_data()?;
