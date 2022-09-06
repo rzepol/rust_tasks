@@ -156,7 +156,7 @@ pub mod scheduler {
             parent_id: Option<Uuid>,
             node_id: Uuid,
         ) -> Result<NodeWithChildren> {
-            let is_done = task.get_target()?.exists();
+            let is_done = task.get_target()?.exists()?;
             let dep_tasks = task.get_dep_tasks()?;
             let child_tasks = dep_tasks.into_values().collect::<Vec<_>>();
             let mut children = Vec::new();

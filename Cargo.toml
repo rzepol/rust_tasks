@@ -1,6 +1,6 @@
 [package]
 name = "tasks"
-version = "1.1.1"
+version = "1.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -13,3 +13,4 @@ chrono-tz = "0.6"
 anyhow = "1"
 uuid = { version = "1", features = ["v4"] }
 rayon = "1"
+rusqlite = "0.28"
