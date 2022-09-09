@@ -1,5 +1,6 @@
 pub mod tasks {
     use anyhow::Result;
+    use log::info;
     use std::{collections::HashMap, fmt, fs, path};
 
     /// The Target trait represents cached data. The data is stored as a byte slice, and can be used
@@ -172,11 +173,6 @@ pub mod tasks {
             "Unimplemented".to_string()
         }
 
-        /// Control verbosity: several methods print when in verbose mode
-        fn is_verbose(&self) -> bool {
-            false
-        }
-
         /// Dependencies, stored in a HashMap. These will be generated using the
         /// run method. This is like the requires() method in luigi.
         fn get_dep_tasks(&self) -> Result<HashMap<String, Box<dyn Task>>> {
@@ -195,9 +191,7 @@ pub mod tasks {
         /// This method recursively generates dependent data, and then calls
         /// get_data for the Task.
         fn run(&self) -> Result<()> {
-            if self.is_verbose() {
-                println!("{}: invoking run()", self.get_name());
-            }
+            info!("{}: invoking run()", self.get_name());
             // recursively run dependent tasks
             for (_, dep) in self.get_dep_tasks()? {
                 dep.run()?;
@@ -205,14 +199,14 @@ pub mod tasks {
             // run get_data() if the target doesn't exist
             let target = self.get_target()?;
             if !target.exists()? {
-                println!(
-                    "{}: target does not exist: invoking get_data()",
+                info!(
+                    "{}: target does not exist: invoking compute_output()",
                     self.get_name()
                 );
                 let data = self.compute_output()?;
                 target.write(&data)?;
             } else {
-                println!("{}: target exists", self.get_name());
+                info!("{}: target exists", self.get_name());
             }
             Ok(())
         }
@@ -221,12 +215,10 @@ pub mod tasks {
         /// dependencies are not present. For regular use just call run(). This method is used in the
         /// scheduler run method as dependencies are handled in the code there.
         fn run_no_deps(&self) -> Result<()> {
-            if self.is_verbose() {
-                println!("{}: invoking run_no_deps()", self.get_name());
-            }
+            info!("{}: invoking run_no_deps()", self.get_name());
             let target = self.get_target()?;
             if !target.exists()? {
-                println!(
+                info!(
                     "{}: target does not exist: invoking get_data() without running dependencies",
                     self.get_name()
                 );
@@ -239,9 +231,7 @@ pub mod tasks {
         /// Delete target data: this is a convenience method as you can always
         /// just call self.get_target()?.delete()
         fn delete_data(&self) -> Result<()> {
-            if self.is_verbose() {
-                println!("{}: invoking delete_data()", self.get_name());
-            }
+            info!("{}: invoking delete_data()", self.get_name());
             self.get_target()?.delete()?;
             Ok(())
         }
@@ -249,9 +239,7 @@ pub mod tasks {
         /// Non-recursively delete dependencies, i.e., delete task outputs for
         /// dependent tasks
         fn delete_deps(&self) -> Result<()> {
-            if self.is_verbose() {
-                println!("{}: invoking delete_deps()", self.get_name());
-            }
+            info!("{}: invoking delete_deps()", self.get_name());
             for (_, dep) in self.get_dep_targets()? {
                 dep.delete()?;
             }
@@ -261,9 +249,7 @@ pub mod tasks {
         /// Recursively delete dependencies, i.e., delete task outputs for
         /// dependent tasks and their dependencies as well.
         fn recursively_delete_data(&self) -> Result<()> {
-            if self.is_verbose() {
-                println!("{}: invoking recursively_delete_data()", self.get_name());
-            }
+            info!("{}: invoking recursively_delete_data()", self.get_name());
             self.delete_data()?;
             for (_, dep) in self.get_dep_tasks()? {
                 dep.recursively_delete_data()?;
@@ -508,6 +494,8 @@ mod tests {
 #[cfg(test)]
 mod sqlite_tests {
     use anyhow::Result;
+    use chrono::NaiveDate;
+    use log::info;
     use rusqlite::Connection;
     use serde::{Deserialize, Serialize};
 
@@ -635,10 +623,6 @@ mod sqlite_tests {
             format!("TestTask, id={}", self.id)
         }
 
-        fn is_verbose(&self) -> bool {
-            true
-        }
-
         fn get_target(&self) -> Result<Box<dyn Target>> {
             Ok(Box::new(TestTarget::new(self.id)?))
         }
@@ -652,7 +636,7 @@ mod sqlite_tests {
     fn test_sqlite() {
         let id = 5;
         let task = TestTask::new(id);
-        println!("task.data: {:?}", task.data);
+        info!("task.data: {:?}", task.data);
         let target = task.get_target().expect("get_target failed");
 
         target.delete().expect("target.delete failed");
@@ -663,12 +647,20 @@ mod sqlite_tests {
         let records_from_task: Vec<Record> =
             serde_json::from_slice(&task.compute_output().expect("compute_output failed"))
                 .expect("serde_json::from_slice failed");
-        // println!("Records from compute_output: {:?}", records_from_task);
+        // info!("Records from compute_output: {:?}", records_from_task);
 
         let records_from_target: Vec<Record> =
             serde_json::from_slice(&target.read().expect("target.read failed"))
                 .expect("serde_json::from_slice failed");
-        // println!("Records from target read: {:?}", records_from_target);
+        // info!("Records from target read: {:?}", records_from_target);
         assert_eq!(records_from_target, records_from_task);
+    }
+
+    #[test]
+    fn test_duration() {
+        let d0 = NaiveDate::from_ymd(2020, 1, 1);
+        let d1 = NaiveDate::from_ymd(2020, 1, 3);
+        let dur = d1 - d0;
+        assert_eq!(dur.num_days(), 2);
     }
 }
