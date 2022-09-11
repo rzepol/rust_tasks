@@ -188,6 +188,12 @@ pub mod tasks {
             Ok(result)
         }
 
+        /// Validate the task
+        fn validate(&self, _data: &[u8]) -> Result<()> {
+            info!("{}: invoking validate", self.get_name());
+            Ok(())
+        }
+
         /// This method recursively generates dependent data, and then calls
         /// get_data for the Task.
         fn run(&self) -> Result<()> {
@@ -204,6 +210,7 @@ pub mod tasks {
                     self.get_name()
                 );
                 let data = self.compute_output()?;
+                self.validate(&data)?;
                 target.write(&data)?;
             } else {
                 info!("{}: target exists", self.get_name());
@@ -263,7 +270,7 @@ pub mod tasks {
 mod tests {
     use std::collections::HashMap;
     extern crate serde;
-    use anyhow::Result;
+    use anyhow::{anyhow, Result};
     use serde::{Deserialize, Serialize};
 
     use crate::tasks::{DatedFileTarget, FileTarget, Target, Task};
@@ -315,6 +322,44 @@ mod tests {
         assert_eq!(target.read().unwrap(), "some data".as_bytes().to_vec());
         // test with cached starting data
         assert_eq!(target.read().unwrap(), "some data".as_bytes().to_vec());
+    }
+
+    #[test]
+    fn validation() {
+        #[derive(Debug)]
+        struct FileTask {
+            min_len: usize,
+        }
+        impl Task for FileTask {
+            fn get_target(&self) -> Result<Box<dyn Target>> {
+                Ok(Box::new(FileTarget::new(
+                    "/tmp",
+                    "test_validation_target.txt",
+                )))
+            }
+
+            fn compute_output(&self) -> Result<Vec<u8>> {
+                Ok("some data".as_bytes().to_vec())
+            }
+
+            fn validate(&self, data: &[u8]) -> Result<()> {
+                if data.len() < self.min_len {
+                    Err(anyhow!("not enough data!"))
+                } else {
+                    Ok(())
+                }
+            }
+        }
+
+        let task = FileTask { min_len: 1000 };
+        let target = task.get_target().expect("Can't get target");
+        // test with no starting data
+        target.delete().unwrap();
+        // generate the data - should fail validation
+        assert!(task.run().is_err());
+        let task = FileTask { min_len: 1 };
+        // generate the data - should pass validation
+        assert!(!task.run().is_err());
     }
 
     #[test]
