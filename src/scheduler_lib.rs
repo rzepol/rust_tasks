@@ -10,6 +10,7 @@ pub mod scheduler {
 
     use crate::tasks::Task;
     use anyhow::Result;
+    use log::warn;
     use rayon::prelude::{IntoParallelIterator, ParallelIterator};
     use uuid::Uuid;
 
@@ -23,7 +24,7 @@ pub mod scheduler {
         pub children: HashSet<Uuid>,
     }
 
-    /// Tasks don't implemnet Debug so just print their names
+    /// Tasks don't implement Debug so just print their names
     impl fmt::Debug for Node {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f.debug_struct("Node")
@@ -58,7 +59,7 @@ pub mod scheduler {
 
     /// DAG represents a directed acylic graph corresponding to the logical
     /// structure of a task with dependencies. It's currently implemented as an
-    /// arena (a vec of nodes where nodes specify dependencies), with UUIDs as
+    /// arena (a map of nodes where nodes specify dependencies), with UUIDs as
     /// node identifiers.
     pub struct DAG {
         pub nodes: HashMap<Uuid, Node>,
@@ -104,14 +105,22 @@ pub mod scheduler {
                     RunStyle::LOCAL => {
                         candidate_ids.clone().into_iter().for_each(|id| {
                             if let Some(node) = self.nodes.get(&id) {
-                                let _ = node.task.run_no_deps().is_ok();
+                                let task_res = node.task.run_no_deps();
+                                if !task_res.is_ok() {
+                                    warn!("Task {:?} failed to run", node.task);
+                                    warn!("{:?}", task_res);
+                                }
                             }
                         });
                     }
                     RunStyle::PARALLEL => {
                         candidate_ids.clone().into_par_iter().for_each(|id| {
                             if let Some(node) = self.nodes.get(&id) {
-                                let _ = node.task.run_no_deps().is_ok();
+                                let task_res = node.task.run_no_deps();
+                                if !task_res.is_ok() {
+                                    warn!("Task {:?} failed to run", node.task);
+                                    warn!("{:?}", task_res);
+                                }
                             }
                         });
                     }

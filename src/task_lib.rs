@@ -210,6 +210,7 @@ pub mod tasks {
                     self.get_name()
                 );
                 let data = self.compute_output()?;
+                // only write to target destination if validation passes
                 self.validate(&data)?;
                 target.write(&data)?;
             } else {
@@ -230,6 +231,8 @@ pub mod tasks {
                     self.get_name()
                 );
                 let data = self.compute_output()?;
+                // only write to target destination if validation passes
+                self.validate(&data)?;
                 target.write(&data)?;
             }
             Ok(())
