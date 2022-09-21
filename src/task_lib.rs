@@ -148,12 +148,16 @@ pub mod tasks {
     /// is invoked you can get the output using the self.get_data() method.
     pub trait Task: fmt::Debug + Sync + Send {
         /// Target for task output
-        fn get_target(&self) -> Result<Box<dyn Target>>;
+        fn get_target(&self) -> Result<Box<dyn Target>> {
+            Ok(Box::new(NullTarget {}))
+        }
 
         /// The result of the task. This can use dependent task data as we will
         /// ensure that these have been run. Don't call this directly unless you
         /// want to bypass the cache system.
-        fn compute_output(&self) -> Result<Vec<u8>>;
+        fn compute_output(&self) -> Result<Vec<u8>> {
+            Ok(Vec::new())
+        }
 
         /// Return the data from the target cache. If the target cache does not
         /// exist this will fail
