@@ -106,7 +106,7 @@ pub mod scheduler {
                         candidate_ids.clone().into_iter().for_each(|id| {
                             if let Some(node) = self.nodes.get(&id) {
                                 let task_res = node.task.run_no_deps();
-                                if !task_res.is_ok() {
+                                if task_res.is_err() {
                                     warn!("Task {:?} failed to run", node.task);
                                     warn!("{:?}", task_res);
                                 }
@@ -117,7 +117,7 @@ pub mod scheduler {
                         candidate_ids.clone().into_par_iter().for_each(|id| {
                             if let Some(node) = self.nodes.get(&id) {
                                 let task_res = node.task.run_no_deps();
-                                if !task_res.is_ok() {
+                                if task_res.is_err() {
                                     warn!("Task {:?} failed to run", node.task);
                                     warn!("{:?}", task_res);
                                 }
